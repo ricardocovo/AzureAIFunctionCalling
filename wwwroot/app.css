@@ -59,7 +59,7 @@ h1:focus {
 
 .message {
     width:100%;
-    clar:both;
+    clear:both;
 }
 
 .user {

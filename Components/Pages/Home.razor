@@ -7,6 +7,7 @@
 @inject IConfiguration _configuration
 
 @code {
+    string _timeSheetApiUrl = "";
     OpenAIClient _api = null;
     bool _processing = false;
     string _prompt = "";
@@ -19,14 +20,55 @@
             Name = "get_projects",
             Description = "Gets the current available projects for the user.",
             Parameters = BinaryData.FromObjectAsJson(
-                    new
-                    {
-                        Type = "object",
-                        Properties = new { }
-                    },
-                    new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+                        new
+                        {
+                            Type = "object",
+                            Properties = new { }
+                        },
+                        new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
         };
-    #endregion
+
+    ChatCompletionsFunctionToolDefinition addHoursToProject = new ChatCompletionsFunctionToolDefinition()
+        {
+            Name = "add_hours_to_projects",
+            Description = "Adds hours to a project.",
+            Parameters = BinaryData.FromObjectAsJson(
+                       new
+                       {
+                           Type = "object",
+                           Properties = new
+                           {
+                                ProjectId= new
+                                {
+                                    Type = "number",
+                                    Description = "Id of the project to add hours to."
+                                },
+                               Hours = new
+                               {
+                                   Type = "number",
+                                   Description = "Number of hours to log."
+                               },
+                               Description = new
+                               {
+                                   Type = "string",
+                                   Description = "Description of the activity. Default: Some Activity-Explain!"
+                               },
+                               EntryDate = new
+                               {
+                                   Type = "string",
+                                   Format = "date",
+                                   Description = "Date of the activity. Default to current date"
+                               }
+                           },
+
+                           Required = new[] { "hours", "description", "entryDate" },
+                       }
+                       ,
+                       new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+        };
+
+
+   #endregion
 
     #region methods
     ChatCompletionsOptions GetChatCompletionsOptions()
@@ -36,9 +78,10 @@
                 DeploymentName = "gpt35",
                 Messages =
                 {
-                    new ChatRequestSystemMessage("You are a helpful asssistant, you help employees fill out their timesheets."),
+                    new ChatRequestSystemMessage($"You are a helpful asssistant, you help employees fill out their timesheets."),
+                    
                 },
-                Tools = { getProjectsFunction },
+                Tools = { getProjectsFunction, addHoursToProject },
                 ToolChoice = ChatCompletionsToolChoice.Auto,
                 MaxTokens = 100
 
@@ -54,16 +97,18 @@
         return chatCompletionsOptions;
     }
 
-    ChatRequestToolMessage GetToolCallResponseMessage(ChatCompletionsToolCall toolCall)
+    async Task<ChatRequestToolMessage> GetToolCallResponseMessage(ChatCompletionsToolCall toolCall)
     {
         var functionToolCall = toolCall as ChatCompletionsFunctionToolCall;
         if (functionToolCall?.Name == getProjectsFunction.Name)
         {
-            var projects = new List<object> {
-                new { id=1, name="Project Blue" },
-                new { id=2, name="Project Green" },
-                new { id=3, name="Project Yellow" }};
-            return new ChatRequestToolMessage(string.Join(',', projects), toolCall.Id);
+            var getProjectsResult = await ApiWrapper.GetProjects(_timeSheetApiUrl);
+            return new ChatRequestToolMessage(string.Join(',', getProjectsResult), toolCall.Id);
+        }
+        else if (functionToolCall?.Name == addHoursToProject.Name)
+        {            
+            var addHoursResult = await ApiWrapper.AddHoursToProject(_timeSheetApiUrl, functionToolCall.Arguments);
+            return new ChatRequestToolMessage(addHoursResult, toolCall.Id);
         }
         else
         {
@@ -86,7 +131,7 @@
             // Add a new tool message for each tool call that is resolved
             foreach (ChatCompletionsToolCall toolCall in responseChoice.Message.ToolCalls)
             {
-                options.Messages.Add(GetToolCallResponseMessage(toolCall));
+                options.Messages.Add(await GetToolCallResponseMessage(toolCall));
             }
             await ProcessChatCompletion(options);
         }
@@ -103,6 +148,7 @@
     {
         var endpoint = _configuration["OpenAIServiceConfig:EndPoint"] ?? "";
         var apiKey = _configuration["OpenAIServiceConfig:ApiKey"] ?? "";
+        _timeSheetApiUrl = _configuration["TimesheetApi:Url"] ?? "";
         _api = new OpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
     }
 
@@ -146,31 +192,32 @@
 <PageTitle>Demo</PageTitle>
 
 <h1>Let's chat!</h1>
+<p style="color:red">@_errorMessage</p>
 <div class="chat-area">
     @foreach (var item in _messages)
     {
         <div class="message">
-        @if (item.Role == ChatRole.User)
-        {
-            <div class="user">
-                <b>User</b>
-                <div class="content">
-                    @item.Message
+            @if (item.Role == ChatRole.User)
+            {
+                <div class="user">
+                    <b>User</b>
+                    <div class="content">
+                        @item.Message
+                    </div>
                 </div>
-            </div>
-        }
-        else
-        {
-            <div class="assistant">
-                <b>Assitant</b>
-                <div class="content">
-                    @if (item.Message != null)
-                    {
-                        @((MarkupString)item.Message.ReplaceLineEndings("<br>"))
-                    }
+            }
+            else
+            {
+                <div class="assistant">
+                    <b>Assitant</b>
+                    <div class="content">
+                        @if (item.Message != null)
+                        {
+                            @((MarkupString)item.Message.ReplaceLineEndings("<br>"))
+                        }
+                    </div>
                 </div>
-            </div>
-        }
+            }
         </div>
     }
 </div>
