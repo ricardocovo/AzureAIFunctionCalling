@@ -13,7 +13,7 @@ a, .btn-link {
 }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
 }
 
 .content {
@@ -50,11 +50,17 @@ h1:focus {
     border-color: #929292;
 }
 
-.chat-area{
+.chat-area {
     border: 1px solid #ccc;
-    height:550px; width:80%; overflow: scroll;
-    padding:10px
-    
+    height: 550px;
+    width: 80%;
+    overflow: scroll;
+    padding: 10px
+}
+
+.message {
+    width: 100%;
+    clar: both;
 }
 
 .user {
@@ -64,9 +70,10 @@ h1:focus {
     border-radius: 5px;
     border: 1px solid #ccc;
     background: #4cd96f;
-    min-width: 50%;
-    text-align: right
+    min-width: 80%;
+    text-align: right;
 }
+
 
 .assistant {
     float: left;
@@ -75,9 +82,15 @@ h1:focus {
     border-radius: 5px;
     border: 1px solid #ccc;
     background: #70b0db;
-    min-width: 50%;
-
+    min-width: 80%;
 }
+
+    .user:after, .assistant::after {
+        content: "";
+        clear: both;
+        display: table;
+    }
+
 
 .chat-input {
     border: 1px dashed #888;
