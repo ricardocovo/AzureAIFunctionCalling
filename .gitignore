@@ -1,0 +1,12 @@
+appsettings.json
+bin/
+obj/
+*.suo
+*.user
+*.vscode
+*.vs
+*.sln
+*.csproj.user
+*.cache
+*.log
+
