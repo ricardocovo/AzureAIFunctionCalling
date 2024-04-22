@@ -57,6 +57,11 @@ h1:focus {
     
 }
 
+.message {
+    width:100%;
+    clar:both;
+}
+
 .user {
     float: right;
     margin-top: 10px;
@@ -64,10 +69,11 @@ h1:focus {
     border-radius: 5px;
     border: 1px solid #ccc;
     background: #4cd96f;
-    min-width: 50%;
-    text-align: right
+    min-width: 80%;
+    text-align: right;
 }
 
+ 
 .assistant {
     float: left;
     margin-top: 10px;
@@ -75,9 +81,15 @@ h1:focus {
     border-radius: 5px;
     border: 1px solid #ccc;
     background: #70b0db;
-    min-width: 50%;
-
+    min-width: 80%;
 }
+
+    .user:after, .assistant::after {
+        content: "";
+        clear: both;
+        display: table;
+    }
+
 
 .chat-input {
     border: 1px dashed #888;

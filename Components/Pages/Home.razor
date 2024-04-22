@@ -3,6 +3,7 @@
 @using Azure
 @using Azure.AI
 @using Azure.AI.OpenAI
+@using System.Text.Json
 @inject IConfiguration _configuration
 
 @code {
@@ -12,28 +13,89 @@
     string _errorMessage = "";
     List<DisplayMessage> _messages = new List<DisplayMessage>();
 
+    #region tool definition
+    ChatCompletionsFunctionToolDefinition getProjectsFunction = new ChatCompletionsFunctionToolDefinition()
+        {
+            Name = "get_projects",
+            Description = "Gets the current available projects for the user.",
+            Parameters = BinaryData.FromObjectAsJson(
+                    new
+                    {
+                        Type = "object",
+                        Properties = new { }
+                    },
+                    new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+        };
+    #endregion
+
     #region methods
     ChatCompletionsOptions GetChatCompletionsOptions()
     {
         var chatCompletionsOptions = new ChatCompletionsOptions()
-        {
-            DeploymentName = "gpt35",
-            Messages =
+            {
+                DeploymentName = "gpt35",
+                Messages =
                 {
-                    new ChatRequestSystemMessage("You are a helpful asssistant thata is obsessed with cookies and talk about them all the time"),
+                    new ChatRequestSystemMessage("You are a helpful asssistant, you help employees fill out their timesheets."),
                 },
-            MaxTokens = 100
-        };
+                Tools = { getProjectsFunction },
+                ToolChoice = ChatCompletionsToolChoice.Auto,
+                MaxTokens = 100
 
-        foreach(var message in _messages){
+            };
+
+        foreach (var message in _messages)
+        {
             if (message.Role == ChatRole.User)
                 chatCompletionsOptions.Messages.Add(new ChatRequestUserMessage(message.Message));
             else if (message.Role == ChatRole.Assistant)
                 chatCompletionsOptions.Messages.Add(new ChatRequestAssistantMessage(message.Message));
-        }    
+        }
         return chatCompletionsOptions;
     }
 
+    ChatRequestToolMessage GetToolCallResponseMessage(ChatCompletionsToolCall toolCall)
+    {
+        var functionToolCall = toolCall as ChatCompletionsFunctionToolCall;
+        if (functionToolCall?.Name == getProjectsFunction.Name)
+        {
+            var projects = new List<object> {
+                new { id=1, name="Project Blue" },
+                new { id=2, name="Project Green" },
+                new { id=3, name="Project Yellow" }};
+            return new ChatRequestToolMessage(string.Join(',', projects), toolCall.Id);
+        }
+        else
+        {
+            // Handle other or unexpected calls
+            throw new NotImplementedException();
+        }
+    }
+
+    async Task ProcessChatCompletion(ChatCompletionsOptions options)
+    {
+        //send to the api
+        Response<ChatCompletions> response = await _api.GetChatCompletionsAsync(options);
+        ChatChoice responseChoice = response.Value.Choices[0];
+        if (responseChoice.FinishReason == CompletionsFinishReason.ToolCalls)
+        {
+            // Add the assistant message with tool calls to the conversation history
+            ChatRequestAssistantMessage toolCallHistoryMessage = new(responseChoice.Message);
+            options.Messages.Add(toolCallHistoryMessage);
+
+            // Add a new tool message for each tool call that is resolved
+            foreach (ChatCompletionsToolCall toolCall in responseChoice.Message.ToolCalls)
+            {
+                options.Messages.Add(GetToolCallResponseMessage(toolCall));
+            }
+            await ProcessChatCompletion(options);
+        }
+        else
+        {
+            _messages.Add(new DisplayMessage(ChatRole.Assistant, responseChoice.Message.Content));
+
+        }
+    }
     #endregion
 
     #region event handlers
@@ -62,10 +124,10 @@
             //add current message to the list
             var currentMessage = new DisplayMessage(ChatRole.User, _prompt);
             _messages.Add(currentMessage);
-            //send to the api
-            Response<ChatCompletions> response = await _api.GetChatCompletionsAsync(GetChatCompletionsOptions());
-            ChatResponseMessage responseMessage = response.Value.Choices[0].Message;
-            _messages.Add(new DisplayMessage(ChatRole.Assistant, responseMessage.Content));
+            //process
+            var options = GetChatCompletionsOptions();
+            await ProcessChatCompletion(options);
+
 
         }
         catch (Exception ex)
@@ -87,6 +149,7 @@
 <div class="chat-area">
     @foreach (var item in _messages)
     {
+        <div class="message">
         @if (item.Role == ChatRole.User)
         {
             <div class="user">
@@ -103,11 +166,12 @@
                 <div class="content">
                     @if (item.Message != null)
                     {
-                        @((MarkupString)item.Message)
+                        @((MarkupString)item.Message.ReplaceLineEndings("<br>"))
                     }
                 </div>
             </div>
         }
+        </div>
     }
 </div>
 @if (!_processing)
