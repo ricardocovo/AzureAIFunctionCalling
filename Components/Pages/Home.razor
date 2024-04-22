@@ -78,7 +78,7 @@
                 DeploymentName = "gpt35",
                 Messages =
                 {
-                    new ChatRequestSystemMessage($"You are a helpful asssistant, you help employees fill out their timesheets."),
+                    new ChatRequestSystemMessage($"You are a helpful asssistant, you help employees fill out their timesheets.The current Date and Time is  ${JsonSerializer.Serialize(DateTime.Now)}"),
                     
                 },
                 Tools = { getProjectsFunction, addHoursToProject },
