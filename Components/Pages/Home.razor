@@ -78,12 +78,8 @@
                 DeploymentName = "gpt35",
                 Messages =
                 {
-<<<<<<< Updated upstream
                     new ChatRequestSystemMessage($"You are a helpful asssistant, you help employees fill out their timesheets.The current Date and Time is  ${JsonSerializer.Serialize(DateTime.Now)}"),
-                    
-=======
-                    new ChatRequestSystemMessage("You are a helpful asssistant that is obsessed with cookies and talk about them all the time"),
->>>>>>> Stashed changes
+
                 },
                 Tools = { getProjectsFunction, addHoursToProject },
                 ToolChoice = ChatCompletionsToolChoice.Auto,
